@@ -1,9 +1,17 @@
 #include "FileCamouflage.hpp"
 #include <iostream>
 
-int main()
+int main(int argc, char* argv[])
 {
     std::cout << "文件伪装" << std::endl;
-    zwn::pngMatType("D:\\Pictures\\Saved Pictures\\Snipaste_2022-12-19_20-08-15.png");
+    // if (argc != 3) {
+    //     std::cout << "参数错误" << std::endl;
+    //     return 0;
+    // }
+    std::string inp;
+    std::cin >> inp;
+    std::string out;
+    std::cin >> out;
+    zwn::convertFiltToImage(inp, out);
     return 0;
 }
