@@ -56,7 +56,7 @@ void convertFiltToImage(const std::string& inputFile, const std::string& outputD
         fileCnt += 1;
     }
 
-    std::ifstream fi(fp);
+    std::ifstream fi(fp, std::ios::in | std::ios::binary);
     if (!fi.is_open()) {
         return;
     }

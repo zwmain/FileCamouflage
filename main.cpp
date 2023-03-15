@@ -8,10 +8,6 @@ int main(int argc, char* argv[])
     //     std::cout << "参数错误" << std::endl;
     //     return 0;
     // }
-    std::string inp;
-    std::cin >> inp;
-    std::string out;
-    std::cin >> out;
-    zwn::convertFiltToImage(inp, out);
+    zwn::convertFiltToImage("D:/Temp/v2rayN-Core.zip", "D:/Temp/Images");
     return 0;
 }
