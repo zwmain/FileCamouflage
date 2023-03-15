@@ -77,6 +77,18 @@ void convertFiltToImage(const std::string& inputFile, const std::string& outputD
     }
 }
 
+void convertImagesToFile(const std::string& inputDir, std::string& outputFile)
+{
+    fs::path dirPath(inputDir);
+    if (!fs::exists(dirPath) || !fs::is_directory(dirPath)) {
+        return;
+    }
+    fs::directory_iterator itDir(dirPath);
+    for (const fs::directory_entry& p : itDir) {
+        // todo
+    }
+}
+
 }
 
 #endif
