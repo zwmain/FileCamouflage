@@ -77,15 +77,26 @@ void convertFiltToImage(const std::string& inputFile, const std::string& outputD
     }
 }
 
-void convertImagesToFile(const std::string& inputDir, std::string& outputFile)
+void convertImagesToFile(const std::string& inputDir, const std::string& outputFile)
 {
     fs::path dirPath(inputDir);
     if (!fs::exists(dirPath) || !fs::is_directory(dirPath)) {
         return;
     }
+    std::ofstream fo(outputFile, std::ios::out | std::ios::binary | std::ios::app);
+    if (!fo.is_open()) {
+        return;
+    }
     fs::directory_iterator itDir(dirPath);
     for (const fs::directory_entry& p : itDir) {
-        // todo
+        std::cout << p.path() << std::endl;
+        cv::Mat img = cv::imread(p.path().string());
+        if (!(img.rows == K1_HEIGH && img.cols == K1_WIDTH)) {
+            continue;
+        }
+        uint64_t dataSz = 0;
+        std::memcpy(&dataSz, img.data, sizeof(dataSz));
+        fo.write((char*)&img.data[8], dataSz);
     }
 }
 

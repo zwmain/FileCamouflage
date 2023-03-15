@@ -4,10 +4,7 @@
 int main(int argc, char* argv[])
 {
     std::cout << "文件伪装" << std::endl;
-    // if (argc != 3) {
-    //     std::cout << "参数错误" << std::endl;
-    //     return 0;
-    // }
-    zwn::convertFiltToImage("D:/Temp/v2rayN-Core.zip", "D:/Temp/Images");
+    zwn::convertFiltToImage("D:/ProgramFiles/v2rayN.7z", "D:/Temp/Images");
+    zwn::convertImagesToFile("D:/Temp/Images", "D:/Temp/v2rayN.7z");
     return 0;
 }
