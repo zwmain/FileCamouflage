@@ -151,22 +151,17 @@ Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const 
     auto [fileCnt, imgSz] = imgSty;
     const size_t numWidth = getNumWidth(fileCnt);
 
-    std::ifstream fi(inputFile, std::ios::in | std::ios::binary);
-    if (!fi.is_open()) {
-        return Status::FILE_OPEN_ERR;
-    }
     std::string fileName = inputFile.filename().string();
-    cv::Mat img = cv::Mat::zeros(imgSz.heigh, imgSz.width, CV_8UC3);
     uint64_t remainSize = fileSize;
+    uint64_t wrPos = 0;
     for (size_t i = 0; i < fileCnt; ++i) {
-        uchar* data = img.data;
         uint64_t wrSize = remainSize > imgSz.buffs ? imgSz.buffs : remainSize;
-        std::memcpy(data, &wrSize, sizeof(wrSize));
-        fi.read((char*)&data[8], wrSize);
         remainSize -= wrSize;
-        std::string outName = fmt::format("{}_{:>0{}}.png", fileName, i, numWidth);
-        fs::path outPath = outpurDir / outName;
-        cv::imwrite(outPath.string(), img, PNG_CFG);
+        wrPos += wrSize;
+        Status stu = readFileToImage(inputFile, outpurDir, imgSz, fileName, wrPos, wrSize, i, numWidth);
+        if (stu != Status::OK) {
+            return stu;
+        }
     }
     return Status::OK;
 }
