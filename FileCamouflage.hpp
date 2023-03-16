@@ -10,6 +10,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace zwn {
@@ -33,6 +34,8 @@ struct ImageSize {
     size_t bytes = 0;
     size_t buffs = 0;
 };
+
+using ImageStrategy = std::pair<size_t, ImageSize>;
 
 constexpr size_t K1_WIDTH = 1920;
 constexpr size_t K1_HEIGH = 1080;
@@ -64,6 +67,12 @@ Status disguiseFile(const std::string& inputFile, const std::string& outputDir);
  */
 Status recoveryFile(const std::string& inputDir, const std::string& outputFile);
 
+ImageStrategy makeImageStrategy(uint64_t fileSize);
+
+size_t getNumWidth(size_t num);
+
+// ----------------------------------------------------------------------------
+
 Status disguiseFile(const std::string& inputFile, const std::string& outputDir)
 {
     fs::path fp(inputFile);
@@ -86,27 +95,23 @@ Status disguiseFile(const std::string& inputFile, const std::string& outputDir)
     }
 
     uint64_t fileSize = fs::file_size(fp);
-    size_t fileCnt = fileSize / K1_BUFF;
-    if (fileSize % K1_BUFF != 0) {
-        fileCnt += 1;
-    }
+    auto [fileCnt, imgSz] = makeImageStrategy(fileSize);
+    const size_t numWidth = getNumWidth(fileCnt);
 
     std::ifstream fi(fp, std::ios::in | std::ios::binary);
     if (!fi.is_open()) {
         return Status::FILE_OPEN_ERR;
     }
     std::string fileName = fp.filename().string();
-    cv::Mat img = cv::Mat::zeros(K1_HEIGH, K1_WIDTH, CV_8UC3);
+    cv::Mat img = cv::Mat::zeros(imgSz.heigh, imgSz.width, CV_8UC3);
     uint64_t remainSize = fileSize;
-    std::unique_ptr<char[]> buf = std::make_unique<char[]>(K1_BUFF);
     for (size_t i = 0; i < fileCnt; ++i) {
         uchar* data = img.data;
-        uint64_t wrSize = remainSize > K1_BUFF ? K1_BUFF : remainSize;
+        uint64_t wrSize = remainSize > imgSz.buffs ? imgSz.buffs : remainSize;
         std::memcpy(data, &wrSize, sizeof(wrSize));
-        fi.read(buf.get(), wrSize);
-        std::memcpy(&data[8], buf.get(), wrSize);
+        fi.read((char*)&data[8], wrSize);
         remainSize -= wrSize;
-        std::string outName = fmt::format("{}_{}.png", fileName, i);
+        std::string outName = fmt::format("{}_{:>0{}}.png", fileName, i, numWidth);
         fs::path outPath = dir / outName;
         cv::imwrite(outPath.string(), img, PNG_CFG);
     }
@@ -144,6 +149,35 @@ Status recoveryFile(const std::string& inputDir, const std::string& outputFile)
         fo.write((char*)&img.data[8], dataSz);
     }
     return Status::OK;
+}
+
+ImageStrategy makeImageStrategy(uint64_t fileSize)
+{
+    ImageSize sz;
+    for (auto& imgSz : IMG_LIST) {
+        if (fileSize >= imgSz.buffs) {
+            sz = imgSz;
+            break;
+        }
+    }
+    if (sz.buffs == 0) {
+        sz = IMG_LIST.back();
+    }
+    size_t fileCnt = fileSize / sz.buffs;
+    if (fileSize % sz.buffs != 0) {
+        fileCnt += 1;
+    }
+    return { fileCnt, sz };
+}
+
+size_t getNumWidth(size_t num)
+{
+    size_t numW = 1;
+    while (num / 10) {
+        num /= 10;
+        ++numW;
+    }
+    return numW;
 }
 
 }
