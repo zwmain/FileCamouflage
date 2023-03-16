@@ -69,6 +69,16 @@ Status recoveryFile(const std::string& inputDir, const std::string& outputFile);
 
 Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const ImageStrategy& imgSty);
 
+Status readFileToImage(
+    const fs::path& inputFile,
+    const fs::path& outpurDir,
+    const ImageSize& imgSz,
+    const std::string& fileName,
+    uint64_t rdPos,
+    uint64_t rdSize,
+    size_t imgId,
+    size_t idWidth);
+
 ImageStrategy makeImageStrategy(uint64_t fileSize);
 
 size_t getNumWidth(size_t num);
@@ -158,6 +168,31 @@ Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const 
         fs::path outPath = outpurDir / outName;
         cv::imwrite(outPath.string(), img, PNG_CFG);
     }
+    return Status::OK;
+}
+
+Status readFileToImage(
+    const fs::path& inputFile,
+    const fs::path& outpurDir,
+    const ImageSize& imgSz,
+    const std::string& fileName,
+    uint64_t rdPos,
+    uint64_t rdSize,
+    size_t imgId,
+    size_t idWidth)
+{
+    std::ifstream fi(inputFile, std::ios::in | std::ios::binary);
+    if (!fi.is_open()) {
+        return Status::FILE_OPEN_ERR;
+    }
+    cv::Mat img = cv::Mat::zeros(imgSz.heigh, imgSz.width, CV_8UC3);
+    uchar* data = img.data;
+    std::memcpy(data, &rdSize, sizeof(rdSize));
+    fi.seekg(rdPos);
+    fi.read((char*)&data[8], rdSize);
+    std::string outName = fmt::format("{}_{:>0{}}.png", fileName, imgId, idWidth);
+    fs::path outPath = outpurDir / outName;
+    cv::imwrite(outPath.string(), img, PNG_CFG);
     return Status::OK;
 }
 
