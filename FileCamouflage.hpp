@@ -25,7 +25,8 @@ enum class Status {
     FILE_ALREADY_EXISTS,
     NOT_DIR,
     DIR_NOT_EXISTS,
-    DIR_CREATE_ERR
+    DIR_CREATE_ERR,
+    DATA_ERR
 };
 
 struct ImageSize {
@@ -131,18 +132,27 @@ Status recoveryFile(const std::string& inputDir, const std::string& outputFile)
         return Status::FILE_OPEN_ERR;
     }
 
+    Status stu = Status::OK;
     fs::directory_iterator itDir(dirPath);
     for (const fs::directory_entry& p : itDir) {
         std::cout << p.path() << std::endl;
         cv::Mat img = cv::imread(p.path().string());
-        if (!(img.rows == K1_HEIGH && img.cols == K1_WIDTH)) {
-            continue;
+        size_t imgBytes = img.total() * img.elemSize();
+        if (img.empty() || imgBytes < 8) {
+            stu = Status::DATA_ERR;
+            break;
         }
         uint64_t dataSz = 0;
         std::memcpy(&dataSz, img.data, sizeof(dataSz));
         fo.write((char*)&img.data[8], dataSz);
     }
-    return Status::OK;
+    fo.close();
+
+    if (stu != Status::OK && fs::exists(fp)) {
+        fs::remove(fp);
+    }
+
+    return stu;
 }
 
 Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const ImageStrategy& imgSty)
