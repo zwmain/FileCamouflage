@@ -167,8 +167,8 @@ Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const 
     for (size_t i = 0; i < fileCnt; ++i) {
         uint64_t wrSize = remainSize > imgSz.buffs ? imgSz.buffs : remainSize;
         remainSize -= wrSize;
-        wrPos += wrSize;
         Status stu = readFileToImage(inputFile, outpurDir, imgSz, fileName, wrPos, wrSize, i, numWidth);
+        wrPos += wrSize;
         if (stu != Status::OK) {
             return stu;
         }
