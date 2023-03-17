@@ -55,7 +55,10 @@ const std::vector<ImageSize> IMG_LIST {
     { 1920, 1080, 6220800, 6220792 } // 1k
 };
 const std::vector<int> PNG_CFG { cv::IMWRITE_PNG_COMPRESSION, 0, cv::IMWRITE_PNG_STRATEGY, cv::IMWRITE_PNG_STRATEGY_DEFAULT };
+// C++对零宽断言支持不完整，会崩溃
 // const std::regex REG_PNG_FILE_ID { "(?<=.*_)\\d+(?=\\.([pP][nN][gG])$)" };
+// 使用子表达式匹配目标数字
+const std::regex REG_PNG_FILE_ID { ".*_(\\d+)\\.[pP][nN][gG]$" };
 
 /**
  * @brief 伪装文件
@@ -232,8 +235,7 @@ size_t getNumWidth(size_t num)
 std::pair<FileType, size_t> parseFileId(const std::string& fileName)
 {
     std::smatch res;
-    std::regex regPng("(?<=.*_)\\d+(?=\\.([pP][nN][gG])$)");
-    bool isMatch = std::regex_match(fileName, res, regPng);
+    bool isMatch = std::regex_match(fileName, res, REG_PNG_FILE_ID);
     if (!isMatch || res.size() != 2) {
         return { FileType::UNKNOWN, 0 };
     }
