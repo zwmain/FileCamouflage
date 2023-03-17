@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -280,7 +279,6 @@ Status imagesToFile(std::vector<PathWithId>& pathList, const fs::path& outputFil
     }
     Status stu = Status::OK;
     for (auto& [inpPath, fId] : pathList) {
-        std::cout << inpPath << std::endl;
         auto [img, dataSz] = readImageData(inpPath);
         if (img.empty()) {
             stu = Status::DATA_ERR;
