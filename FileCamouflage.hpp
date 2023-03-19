@@ -1,6 +1,7 @@
 #ifndef _FILE_CAMOUFLAGE_HPP_
 #define _FILE_CAMOUFLAGE_HPP_
 
+#include "ThreadPool.hpp"
 #include <algorithm>
 #include <cstring>
 #include <filesystem>
@@ -165,11 +166,17 @@ Status fileToImages(const fs::path& inputFile, const fs::path& outpurDir, const 
     std::string fileName = inputFile.filename().string();
     uint64_t remainSize = fileSize;
     uint64_t wrPos = 0;
+    auto thPool = ThreadPool::instance();
+    std::vector<std::future<Status>> resArr;
     for (size_t i = 0; i < fileCnt; ++i) {
         uint64_t wrSize = remainSize > imgSz.buffs ? imgSz.buffs : remainSize;
         remainSize -= wrSize;
-        Status stu = readFileToImage(inputFile, outpurDir, imgSz, fileName, wrPos, wrSize, i, numWidth);
+        auto res = thPool->addTask(readFileToImage, inputFile, outpurDir, imgSz, fileName, wrPos, wrSize, i, numWidth);
+        resArr.push_back(std::move(res));
         wrPos += wrSize;
+    }
+    for (auto& res : resArr) {
+        Status stu = res.get();
         if (stu != Status::OK) {
             return stu;
         }
@@ -277,9 +284,15 @@ Status imagesToFile(std::vector<PathWithId>& pathList, const fs::path& outputFil
     if (!fo.is_open()) {
         return Status::FILE_OPEN_ERR;
     }
-    Status stu = Status::OK;
+    auto thPool = ThreadPool::instance();
+    std::vector<std::future<std::pair<cv::Mat, size_t>>> resArr;
     for (auto& [inpPath, fId] : pathList) {
-        auto [img, dataSz] = readImageData(inpPath);
+        auto res = thPool->addTask(readImageData, inpPath);
+        resArr.push_back(std::move(res));
+    }
+    Status stu = Status::OK;
+    for (auto& res : resArr) {
+        auto [img, dataSz] = res.get();
         if (img.empty()) {
             stu = Status::DATA_ERR;
             break;

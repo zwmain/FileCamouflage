@@ -62,6 +62,7 @@ add_executable(
     ${PROJECT_NAME}
     main.cpp
     FileCamouflage.hpp
+    ThreadPool.hpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS} ${ZWN_FMT_INC_DIR})
