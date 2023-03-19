@@ -1,18 +1,15 @@
 #ifndef _FILE_CAMOUFLAGE_HPP_
 #define _FILE_CAMOUFLAGE_HPP_
 
-#include <cstring>
-#include <filesystem>
-#include <fmt/format.h>
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
-#include <iostream>
-#include <memory>
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <regex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,10 +24,17 @@ enum class Status {
     FILE_NOT_EXISTS,
     FILE_OPEN_ERR,
     FILE_ALREADY_EXISTS,
+    FILE_TYPE_UNKOWN,
     NOT_DIR,
     DIR_NOT_EXISTS,
     DIR_CREATE_ERR,
-    DATA_ERR
+    DATA_ERR,
+};
+
+enum class FileType {
+    UNKNOWN = 0,
+    PNG,
+    MP4
 };
 
 struct ImageSize {
@@ -41,11 +45,8 @@ struct ImageSize {
 };
 
 using ImageStrategy = std::pair<size_t, ImageSize>;
+using PathWithId = std::pair<fs::path, size_t>;
 
-constexpr size_t K1_WIDTH = 1920;
-constexpr size_t K1_HEIGH = 1080;
-constexpr size_t K1_SIZE = 6220800;
-constexpr size_t K1_BUFF = 6220792;
 const std::vector<ImageSize> IMG_LIST {
     { 7860, 4320, 101865600, 101865592 }, // 8k
     { 3840, 2160, 24883200, 24883192 }, // 4k
@@ -53,6 +54,10 @@ const std::vector<ImageSize> IMG_LIST {
     { 1920, 1080, 6220800, 6220792 } // 1k
 };
 const std::vector<int> PNG_CFG { cv::IMWRITE_PNG_COMPRESSION, 0, cv::IMWRITE_PNG_STRATEGY, cv::IMWRITE_PNG_STRATEGY_DEFAULT };
+// C++对零宽断言支持不完整，会崩溃
+// const std::regex REG_PNG_FILE_ID { "(?<=.*_)\\d+(?=\\.([pP][nN][gG])$)" };
+// 使用子表达式匹配目标数字
+const std::regex REG_PNG_FILE_ID { ".*_(\\d+)\\.[pP][nN][gG]$" };
 
 /**
  * @brief 伪装文件
@@ -87,6 +92,16 @@ Status readFileToImage(
 ImageStrategy makeImageStrategy(uint64_t fileSize);
 
 size_t getNumWidth(size_t num);
+
+std::pair<FileType, size_t> parseFileId(const std::string& fileName);
+
+std::vector<PathWithId> getInputFileList(const fs::path& inputDir);
+
+Status imagesToFile(std::vector<PathWithId>& pathList, const fs::path& outputFile);
+
+std::pair<cv::Mat, size_t> readImageData(const fs::path& inputFile);
+
+bool cmpPathWithId(const PathWithId& a, const PathWithId& b);
 
 // ----------------------------------------------------------------------------
 
@@ -131,30 +146,12 @@ Status recoveryFile(const std::string& inputDir, const std::string& outputFile)
         return Status::FILE_ALREADY_EXISTS;
     }
 
-    std::ofstream fo(fp, std::ios::out | std::ios::binary | std::ios::app);
-    if (!fo.is_open()) {
-        return Status::FILE_OPEN_ERR;
+    std::vector<PathWithId> pathList = getInputFileList(dirPath);
+    if (pathList.empty()) {
+        return Status::FILE_TYPE_UNKOWN;
     }
 
-    Status stu = Status::OK;
-    fs::directory_iterator itDir(dirPath);
-    for (const fs::directory_entry& p : itDir) {
-        std::cout << p.path() << std::endl;
-        cv::Mat img = cv::imread(p.path().string());
-        size_t imgBytes = img.total() * img.elemSize();
-        if (img.empty() || imgBytes < 8) {
-            stu = Status::DATA_ERR;
-            break;
-        }
-        uint64_t dataSz = 0;
-        std::memcpy(&dataSz, img.data, sizeof(dataSz));
-        fo.write((char*)&img.data[8], dataSz);
-    }
-    fo.close();
-
-    if (stu != Status::OK && fs::exists(fp)) {
-        fs::remove(fp);
-    }
+    Status stu = imagesToFile(pathList, fp);
 
     return stu;
 }
@@ -234,6 +231,85 @@ size_t getNumWidth(size_t num)
     return numW;
 }
 
+std::pair<FileType, size_t> parseFileId(const std::string& fileName)
+{
+    std::smatch res;
+    bool isMatch = std::regex_match(fileName, res, REG_PNG_FILE_ID);
+    if (!isMatch || res.size() != 2) {
+        return { FileType::UNKNOWN, 0 };
+    }
+    std::ssub_match subRes = res[1];
+    std::string strId = subRes.str();
+    size_t fId = std::stoull(strId);
+    return { FileType::PNG, fId };
+}
+
+std::vector<PathWithId> getInputFileList(const fs::path& inputDir)
+{
+    std::vector<PathWithId> pathList;
+    bool isSorted = true;
+    fs::directory_iterator itDir(inputDir);
+    for (const fs::directory_entry& p : itDir) {
+        auto& inpPath = p.path();
+        std::string inpName = inpPath.filename().string();
+        auto [fType, fId] = parseFileId(inpName);
+        if (fType != FileType::PNG) {
+            pathList.clear();
+            return pathList;
+        }
+        if (!pathList.empty() && isSorted) {
+            size_t lastId = pathList.back().second;
+            if (!(fId > lastId && fId - lastId == 1)) {
+                isSorted = false;
+            }
+        }
+        pathList.push_back({ inpPath, fId });
+    }
+    if (!isSorted) {
+        std::sort(pathList.begin(), pathList.end(), cmpPathWithId);
+    }
+    return pathList;
+}
+
+Status imagesToFile(std::vector<PathWithId>& pathList, const fs::path& outputFile)
+{
+    std::ofstream fo(outputFile, std::ios::out | std::ios::binary | std::ios::app);
+    if (!fo.is_open()) {
+        return Status::FILE_OPEN_ERR;
+    }
+    Status stu = Status::OK;
+    for (auto& [inpPath, fId] : pathList) {
+        auto [img, dataSz] = readImageData(inpPath);
+        if (img.empty()) {
+            stu = Status::DATA_ERR;
+            break;
+        }
+        fo.write((char*)&img.data[8], dataSz);
+    }
+    fo.close();
+
+    if (stu != Status::OK && fs::exists(outputFile)) {
+        fs::remove(outputFile);
+    }
+    return stu;
+}
+
+std::pair<cv::Mat, size_t> readImageData(const fs::path& inputFile)
+{
+    cv::Mat img = cv::imread(inputFile.string());
+    size_t imgBytes = img.total() * img.elemSize();
+    if (img.empty() || imgBytes < 8) {
+        return { cv::Mat(), 0 };
+    }
+    uint64_t dataSz = 0;
+    std::memcpy(&dataSz, img.data, sizeof(dataSz));
+    return { img, dataSz };
+}
+
+bool cmpPathWithId(const PathWithId& a, const PathWithId& b)
+{
+    return a.second < b.second;
+}
 
 }
 
