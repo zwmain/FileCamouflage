@@ -10,6 +10,7 @@
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/videoio.hpp>
 #include <regex>
 #include <string>
 #include <utility>
@@ -104,6 +105,8 @@ std::pair<cv::Mat, size_t> readImageData(const fs::path& inputFile);
 
 bool cmpPathWithId(const PathWithId& a, const PathWithId& b);
 
+Status fileToVideos(const fs::path& inputFile, const fs::path& outpurDir);
+
 // ----------------------------------------------------------------------------
 
 Status disguiseFile(const std::string& inputFile, const std::string& outputDir)
@@ -129,7 +132,12 @@ Status disguiseFile(const std::string& inputFile, const std::string& outputDir)
 
     uint64_t fileSize = fs::file_size(fp);
     ImageStrategy imgSty = makeImageStrategy(fileSize);
-    Status stu = fileToImages(fp, dir, imgSty);
+    Status stu = Status::OK;
+    if (imgSty.first > 2) {
+        stu = fileToVideos(inputFile, outputDir);
+    } else {
+        stu = fileToImages(fp, dir, imgSty);
+    }
     return stu;
 }
 
@@ -322,6 +330,50 @@ std::pair<cv::Mat, size_t> readImageData(const fs::path& inputFile)
 bool cmpPathWithId(const PathWithId& a, const PathWithId& b)
 {
     return a.second < b.second;
+}
+
+Status fileToVideos(const fs::path& inputFile, const fs::path& outpurDir)
+{
+    const ImageSize& imgSz = IMG_LIST.back();
+    uint64_t fileSize = fs::file_size(inputFile);
+    size_t fileCnt = 1;
+    const size_t numWidth = getNumWidth(fileCnt);
+
+    std::string fileName = inputFile.filename().string();
+    std::string outName = fmt::format("{}_{:>0{}}.mkv", fileName, 0, numWidth);
+    fs::path outPath = outpurDir / outName;
+    uint64_t remainSize = fileSize;
+    std::vector<std::future<Status>> resArr;
+    cv::Mat bufImg = cv::Mat::zeros(imgSz.heigh, imgSz.width, CV_8UC3);
+    std::ifstream fi(inputFile, std::ios::in | std::ios::binary);
+    if (!fi.is_open()) {
+        return Status::FILE_OPEN_ERR;
+    }
+
+    cv::Size vSz(imgSz.width, imgSz.heigh);
+    cv::VideoWriter videoWr(outPath.string(), cv::VideoWriter::fourcc('F', 'F', 'V', '1'), 30, vSz);
+    if (!videoWr.isOpened()) {
+        return Status::DATA_ERR;
+    }
+    size_t fmCnt = 0;
+    while (remainSize != 0) {
+        uint64_t wrSize = remainSize > imgSz.buffs ? imgSz.buffs : remainSize;
+        remainSize -= wrSize;
+
+        std::memcpy(bufImg.data, &wrSize, sizeof(wrSize));
+        fi.read((char*)&bufImg.data[8], wrSize);
+        videoWr.write(bufImg);
+        ++fmCnt;
+    }
+    if (fmCnt % 30 != 0) {
+        remainSize = 0;
+        std::memcpy(bufImg.data, &remainSize, sizeof(remainSize));
+        fmCnt = 30 - fmCnt % 30;
+        for (size_t i = 0; i < fmCnt; ++i) {
+            videoWr.write(bufImg);
+        }
+    }
+    return Status::OK;
 }
 
 }

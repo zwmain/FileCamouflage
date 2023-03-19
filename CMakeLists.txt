@@ -42,7 +42,7 @@ set(CMAKE_PREFIX_PATH "${ZWN_OPENCV_DIR};${CMAKE_PREFIX_PATH}")
 set(CMAKE_PREFIX_PATH "${ZWN_FMT_DIR}/lib/cmake;${CMAKE_PREFIX_PATH}")
 
 # 查找OpenCV
-find_package(OpenCV REQUIRED core imgcodecs)
+find_package(OpenCV REQUIRED core imgcodecs videoio)
 if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "未发现OpenCV")
 else()
