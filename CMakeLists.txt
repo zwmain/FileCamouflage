@@ -27,19 +27,8 @@ if(NOT ZWN_OPENCV_DIR)
 endif()
 message(STATUS "OpenCV文件夹 ${ZWN_OPENCV_DIR}")
 
-# 初始化FMT文件夹
-if(NOT ZWN_FMT_ROOT)
-    set(ZWN_FMT_ROOT "D:/ProgramFiles/Dev/FMT/fmt_v9.1.0")
-    message(STATUS "没有指定FMT文件夹-使用默认FMT文件夹")
-endif()
-set(ZWN_FMT_DIR "${ZWN_FMT_ROOT}/${CMAKE_BUILD_TYPE}")
-set(ZWN_FMT_INC_DIR "${ZWN_FMT_DIR}/include")
-message(STATUS "FMT文件夹 ${ZWN_FMT_DIR}")
-message(STATUS "FMT头文件夹 ${ZWN_FMT_INC_DIR}")
-
 # 设置OpenCV和FMT的
 set(CMAKE_PREFIX_PATH "${ZWN_OPENCV_DIR};${CMAKE_PREFIX_PATH}")
-set(CMAKE_PREFIX_PATH "${ZWN_FMT_DIR}/lib/cmake;${CMAKE_PREFIX_PATH}")
 
 # 查找OpenCV
 find_package(OpenCV REQUIRED core imgcodecs videoio)
@@ -50,13 +39,7 @@ else()
     message(STATUS "OpenCV头文件夹 ${OpenCV_INCLUDE_DIRS}")
 endif()
 
-# 查找FMT
-find_package(fmt REQUIRED)
-if(NOT fmt_FOUND)
-    message(FATAL_ERROR "未发现fmt")
-else()
-    message(STATUS "发现fmt")
-endif()
+add_subdirectory(3rdparty/fmt)
 
 add_executable(
     ${PROJECT_NAME}
@@ -65,7 +48,7 @@ add_executable(
     ThreadPool.hpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS} ${ZWN_FMT_INC_DIR})
+target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS} "3rdparty/fmt/include")
 
 target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBS} fmt::fmt)
 
