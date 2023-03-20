@@ -34,6 +34,7 @@
 # Directories
 .vscode/
 build/
+3rdparty/
 
 # CMake
 CMakeLists.txt.user
